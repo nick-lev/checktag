@@ -15,6 +15,9 @@ func checkTag(v interface{}) string {
 	tagmap := make(map[string]int)
 	var check func(t reflect.Type) string
 	check = func(t reflect.Type) string {
+		if t.Kind() == reflect.Ptr {
+			t = reflect.ValueOf(t).Elem().Type()
+		}
 		if t.Kind() != reflect.Struct {
 			return ""
 		}
@@ -59,9 +62,9 @@ func checkTag(v interface{}) string {
 }
 
 type First struct {
-	A  int
-	B  int `json:"b"`
-	B2 int `json:"b,omitempty"` // conflict
+	A int
+	B int `json:"b"`
+	// B2 int `json:"b,omitempty"` // conflict
 	C  int `json:"-"`
 	C2 int `json:"-"`
 	D  int `json:",omitempty"`
