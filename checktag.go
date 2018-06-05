@@ -6,7 +6,7 @@ import (
 	"regexp"
 )
 
-// todo: is all duplication should be catched or we must stop at first dup?
+//is all duplication should be catched or we must stop at first dup?
 func checkTag(v interface{}) string {
 	t := reflect.TypeOf(v)
 	if t.Kind() != reflect.Struct {
@@ -15,9 +15,6 @@ func checkTag(v interface{}) string {
 	tagmap := make(map[string]int)
 	var check func(t reflect.Type) string
 	check = func(t reflect.Type) string {
-		if t.Kind() == reflect.Ptr {
-			t = reflect.ValueOf(t).Elem().Type()
-		}
 		if t.Kind() != reflect.Struct {
 			return ""
 		}
@@ -25,7 +22,7 @@ func checkTag(v interface{}) string {
 			field := t.Field(i)
 			name := field.Name
 			tag := string(field.Tag)
-			if match, _ := regexp.MatchString("^json:", tag); !match { //todo: check is this case sensitive?
+			if match, _ := regexp.MatchString("^json:", tag); !match { //is this case sensitive?
 				tag = name
 			}
 			if match, _ := regexp.MatchString("^json:\"-\"$", tag); match {
@@ -40,16 +37,20 @@ func checkTag(v interface{}) string {
 			re := regexp.MustCompile("^json:\"(.*)\"$")
 			tag = re.ReplaceAllString(tag, "$1")
 
-			re = regexp.MustCompile(",omitempty") //todo: check space after coma
+			re = regexp.MustCompile(",omitempty") //is space after coma possible?
 			tag = re.ReplaceAllString(tag, "")
 			if tag == "" {
 				tag = name
 			}
-			tagmap[tag]++ //todo: check case sensetivity for field name - only exported struct fields affected
+			tagmap[tag]++ //is case sensetivity for field name important for tag and struct field name?
 			if tagmap[tag] > 1 {
 				return fmt.Sprintf("duplicate tag:%s on field:%s", tag, name)
 			}
-			if field.Type.Kind() == reflect.Struct { //todo: add pointer dereferencing for internal struct
+
+			if field.Type.Kind() == reflect.Ptr {
+				field.Type = field.Type.Elem()
+			}
+			if field.Type.Kind() == reflect.Struct {
 				err := check(field.Type)
 				if err != "" {
 					return err
@@ -62,11 +63,11 @@ func checkTag(v interface{}) string {
 }
 
 type First struct {
-	A int
-	B int `json:"b"`
-	// B2 int `json:"b,omitempty"` // conflict
+	A  int
+	B  int `json:"b"`
+	B2 int `json:"b,omitempty"` // conflict
 	C  int `json:"-"`
-	C2 int `json:"-"`
+	C2 int `json:"-,"`
 	D  int `json:",omitempty"`
 	E  int `json:"e,omitempty"`
 	S  *Second
