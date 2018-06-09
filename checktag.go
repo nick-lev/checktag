@@ -3,75 +3,81 @@ package main
 import (
 	"fmt"
 	"reflect"
-	"regexp"
+	"strings"
 )
 
-//is all duplication should be catched or we must stop at first dup?
-func checkTag(v interface{}) string {
-	t := reflect.TypeOf(v)
-	if t.Kind() != reflect.Struct {
-		return ""
-	}
-	tagmap := make(map[string]int)
-	var check func(t reflect.Type) string
-	check = func(t reflect.Type) string {
-		if t.Kind() != reflect.Struct {
-			return ""
+func tag2key(tag, path, name string) string {
+	if tag == "" {
+		tag = path + "->" + name
+	} else {
+		s := strings.Split(tag, ",")
+		switch {
+		case s[0] == "": //fieldname as tag
+			tag = path + "->" + name
+		case s[0] == "-" && len(s) > 1: //- as tag accepted if content:"-,"
+			tag = path + "->" + s[0]
+		case s[0] == "-" && len(s) == 1: //ignore field if tag "-"
+			tag = ""
+		default:
+			tag = path + "->" + s[0]
 		}
-		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
-			name := field.Name
-			tag := string(field.Tag)
-			if match, _ := regexp.MatchString("^json:", tag); !match { //is this case sensitive?
-				tag = name
-			}
-			if match, _ := regexp.MatchString("^json:\"-\"$", tag); match {
-				if field.Type.Kind() == reflect.Struct {
-					err := check(field.Type)
-					if err != "" {
-						return err
-					}
-				}
+	}
+	return tag
+}
+
+func check(t reflect.Type, tagmap map[string]int, path string) error {
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		name := field.Name
+		tag := field.Tag.Get("json")
+		tag = tag2key(tag, path, name)
+		fmt.Println("F: ", field, "T: ", tag, "N:", name, "P: ", path)
+		if tag == "" { // ignore empty
+			continue
+		}
+		tagmap[tag]++
+		if tagmap[tag] > 1 { //cusomise error message
+			return fmt.Errorf("duplicate tag: %s on field: %s with path: %s", tag, name, path)
+		}
+		if field.Type.Kind() == reflect.Ptr {
+			field.Type = field.Type.Elem()
+		}
+		if field.Type.Kind() == reflect.Struct {
+			err := check(field.Type, tagmap, tag)
+			if err != nil {
+				return err
+			} else {
 				continue
 			}
-			re := regexp.MustCompile("^json:\"(.*)\"$")
-			tag = re.ReplaceAllString(tag, "$1")
-
-			re = regexp.MustCompile(",omitempty") //is space after coma possible?
-			tag = re.ReplaceAllString(tag, "")
-			if tag == "" {
-				tag = name
-			}
-			tagmap[tag]++ //is case sensetivity for field name important for tag and struct field name?
-			if tagmap[tag] > 1 {
-				return fmt.Sprintf("duplicate tag:%s on field:%s", tag, name)
-			}
-
-			if field.Type.Kind() == reflect.Ptr {
-				field.Type = field.Type.Elem()
-			}
-			if field.Type.Kind() == reflect.Struct {
-				err := check(field.Type)
-				if err != "" {
-					return err
-				}
-			}
 		}
-		return ""
 	}
-	return check(t)
+	return nil
+
+}
+
+func checkTag(v interface{}) error {
+	t := reflect.TypeOf(v)
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+	tagmap := make(map[string]int)
+	path := "{Root}"
+	return check(t, tagmap, path)
 }
 
 type First struct {
-	A  int
-	B  int `json:"b"`
-	B2 int `json:"b,omitempty"` // conflict
+	A int
+	B int `json:"b"`
+	// B2 int `json:"b,omitempty"` // conflict
 	C  int `json:"-"`
 	C2 int `json:"-,"`
 	D  int `json:",omitempty"`
 	E  int `json:"e,omitempty"`
-	S  *Second
-	T  *Third
+	*Second
+	T *Third
 }
 
 type Second struct {
