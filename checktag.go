@@ -46,6 +46,9 @@ func check(t reflect.Type, tagmap map[string]int, path string) error {
 			field.Type = field.Type.Elem()
 		}
 		if field.Type.Kind() == reflect.Struct {
+			if field.Anonymous {
+				tag = path
+			}
 			err := check(field.Type, tagmap, tag)
 			if err != nil {
 				return err
@@ -69,15 +72,15 @@ func checkTag(v interface{}) error {
 }
 
 type First struct {
-	A int
-	B int `json:"b"`
-	// B2 int `json:"b,omitempty"` // conflict
+	A  int
+	B  int `json:"b"`
+	B2 int `json:"b,omitempty"` // conflict
 	C  int `json:"-"`
-	C2 int `json:"-,"`
+	C2 int `json:"-"`
 	D  int `json:",omitempty"`
 	E  int `json:"e,omitempty"`
 	*Second
-	T *Third
+	Third *Third
 }
 
 type Second struct {
