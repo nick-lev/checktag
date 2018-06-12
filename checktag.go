@@ -25,23 +25,19 @@ func tag2key(tag, path, name string) string {
 	return tag
 }
 
-func check(t reflect.Type, tagmap map[string]int, path string) error {
+func check(t reflect.Type, tagmap *map[string]int, path string) {
 	if t.Kind() != reflect.Struct {
-		return nil
+		return
 	}
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		name := field.Name
 		tag := field.Tag.Get("json")
 		tag = tag2key(tag, path, name)
-		fmt.Println("F: ", field, "T: ", tag, "N:", name, "P: ", path)
 		if tag == "" { // ignore empty
 			continue
 		}
-		tagmap[tag]++
-		if tagmap[tag] > 1 { //cusomise error message
-			return fmt.Errorf("duplicate tag: %s on field: %s with path: %s", tag, name, path)
-		}
+		(*tagmap)[tag]++
 		if field.Type.Kind() == reflect.Ptr {
 			field.Type = field.Type.Elem()
 		}
@@ -49,33 +45,39 @@ func check(t reflect.Type, tagmap map[string]int, path string) error {
 			if field.Anonymous {
 				tag = path
 			}
-			err := check(field.Type, tagmap, tag)
-			if err != nil {
-				return err
-			} else {
-				continue
-			}
+			check(field.Type, tagmap, tag)
 		}
 	}
-	return nil
+	return
 
 }
 
 func checkTag(v interface{}) error {
 	t := reflect.TypeOf(v)
+	var err error
 	if t.Kind() != reflect.Struct {
-		return nil
+		return err
 	}
 	tagmap := make(map[string]int)
 	path := "{Root}"
-	return check(t, tagmap, path)
+	check(t, &tagmap, path)
+	for tag, val := range tagmap {
+		if val > 1 {
+			if err == nil {
+				err = fmt.Errorf("%s", tag)
+			} else {
+				err = fmt.Errorf("%s, %s", err, tag)
+			}
+		}
+	}
+	return err
 }
 
 type First struct {
 	A  int
 	B  int `json:"b"`
 	B2 int `json:"b,omitempty"` // conflict
-	C  int `json:"-"`
+	C  int `json:"-,"`
 	C2 int `json:"-"`
 	D  int `json:",omitempty"`
 	E  int `json:"e,omitempty"`
